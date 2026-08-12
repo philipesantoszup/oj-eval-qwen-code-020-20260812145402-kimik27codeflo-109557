@@ -19,10 +19,40 @@ static int free_count[MAX_RANK + 1];
 
 static inline int compute_max_rank(int pgcount) {
     int r = 1;
-    while ((1 << (r - 1)) <= pgcount && r <= MAX_RANK) {
+    while (r < MAX_RANK && (1 << (r - 1)) < pgcount) {
         r++;
     }
-    return r - 1;
+    return r;
+}
+
+static inline void set_has_free(int node) {
+    if (node_state[node] == STATE_FREE) {
+        has_free[node] = 1;
+    } else if (node_state[node] == STATE_ALLOCATED) {
+        has_free[node] = 0;
+    } else {
+        has_free[node] = has_free[node << 1] | has_free[(node << 1) | 1];
+    }
+}
+
+static void build_tree(int node, int level, int start_page, int pgcount) {
+    int size_pages = 1 << (pool_max_rank - 1 - level);
+    int end_page = start_page + size_pages;
+    if (end_page <= pgcount) {
+        node_state[node] = STATE_FREE;
+        has_free[node] = 1;
+        free_count[pool_max_rank - level]++;
+    } else if (start_page >= pgcount) {
+        node_state[node] = STATE_ALLOCATED;
+        has_free[node] = 0;
+    } else {
+        node_state[node] = STATE_SPLIT;
+        has_free[node] = 1;
+        int mid = start_page + (size_pages >> 1);
+        build_tree(node << 1, level + 1, start_page, pgcount);
+        build_tree((node << 1) | 1, level + 1, mid, pgcount);
+        set_has_free(node);
+    }
 }
 
 static inline int ptr_to_idx(void *p) {
@@ -52,16 +82,6 @@ static inline void *node_to_ptr(int node) {
     int level = node_level(node);
     int start_page = (node - (1 << level)) << (pool_max_rank - 1 - level);
     return pool_start + start_page * PAGE_SIZE;
-}
-
-static inline void set_has_free(int node) {
-    if (node_state[node] == STATE_FREE) {
-        has_free[node] = 1;
-    } else if (node_state[node] == STATE_ALLOCATED) {
-        has_free[node] = 0;
-    } else {
-        has_free[node] = has_free[node << 1] | has_free[(node << 1) | 1];
-    }
 }
 
 static int alloc_recursive(int node, int rank, int target_rank) {
@@ -101,8 +121,7 @@ int init_page(void *p, int pgcount) {
     pool_pgcount = pgcount;
     pool_max_rank = compute_max_rank(pgcount);
 
-    int max_node = (1 << pool_max_rank) - 1;
-    for (int i = 1; i <= max_node; i++) {
+    for (int i = 1; i <= MAX_NODES; i++) {
         node_state[i] = STATE_ALLOCATED;
         has_free[i] = 0;
     }
@@ -110,11 +129,9 @@ int init_page(void *p, int pgcount) {
         free_count[i] = 0;
     }
 
-    if (pool_max_rank >= 1) {
-        node_state[1] = STATE_FREE;
-        has_free[1] = 1;
-        free_count[pool_max_rank] = 1;
-    }
+    int managed_pages = 1 << (pool_max_rank - 1);
+    int effective_pgcount = pgcount < managed_pages ? pgcount : managed_pages;
+    build_tree(1, 0, 0, effective_pgcount);
 
     return OK;
 }
