@@ -137,10 +137,10 @@ int init_page(void *p, int pgcount) {
 }
 
 void *alloc_pages(int rank) {
-    if (rank < 1 || rank > MAX_RANK) {
+    if (rank < 1 || rank > MAX_RANK || rank > pool_max_rank) {
         return ERR_PTR(-EINVAL);
     }
-    if (pool_max_rank < 1 || rank > pool_max_rank || !has_free[1]) {
+    if (pool_max_rank < 1 || !has_free[1]) {
         return ERR_PTR(-ENOSPC);
     }
 
