@@ -85,6 +85,7 @@ static inline void *node_to_ptr(int node) {
 }
 
 static int alloc_recursive(int node, int rank, int target_rank) {
+    if (node < 1 || node > MAX_NODES) return 0;
     if (!has_free[node]) return 0;
     if (node_state[node] == STATE_FREE) {
         if (rank == target_rank) {
@@ -93,6 +94,7 @@ static int alloc_recursive(int node, int rank, int target_rank) {
             free_count[rank]--;
             return node;
         }
+        if (rank < target_rank) return 0;
         node_state[node] = STATE_SPLIT;
         free_count[rank]--;
         int left = node << 1;
@@ -137,7 +139,7 @@ int init_page(void *p, int pgcount) {
 }
 
 void *alloc_pages(int rank) {
-    if (rank < 1 || rank > MAX_RANK || rank > pool_max_rank) {
+    if (rank < 1 || rank > MAX_RANK) {
         return ERR_PTR(-EINVAL);
     }
     if (pool_max_rank < 1 || !has_free[1]) {
