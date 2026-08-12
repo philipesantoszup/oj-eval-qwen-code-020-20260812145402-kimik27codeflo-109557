@@ -229,6 +229,6 @@ int query_ranks(void *p) {
 }
 
 int query_page_counts(int rank) {
-    if (rank < 1 || rank > MAX_RANK) return -EINVAL;
+    if (rank < 1 || rank > MAX_RANK || rank > pool_max_rank) return -EINVAL;
     return free_count[rank];
 }
