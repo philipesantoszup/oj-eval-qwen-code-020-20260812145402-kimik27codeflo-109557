@@ -144,18 +144,16 @@ int return_pages(void *p) {
     int leaf = (1 << (pool_max_rank - 1)) + page_idx;
     int node = leaf;
     int highest_free = 0;
+    int highest_allocated = 0;
     while (node >= 1) {
         if (node_state[node] == STATE_FREE) highest_free = node;
+        if (node_state[node] == STATE_ALLOCATED) highest_allocated = node;
         node >>= 1;
     }
     if (highest_free) return -EINVAL;
+    if (!highest_allocated) return -EINVAL;
 
-    node = leaf;
-    while (node >= 1 && node_state[node] != STATE_ALLOCATED) {
-        node >>= 1;
-    }
-    if (node < 1) return -EINVAL;
-
+    node = highest_allocated;
     int level = node_level(node);
     int start_page = (node - (1 << level)) << (pool_max_rank - 1 - level);
     if (start_page != page_idx) return -EINVAL;
@@ -200,19 +198,16 @@ int query_ranks(void *p) {
     int leaf = (1 << (pool_max_rank - 1)) + page_idx;
     int node = leaf;
     int highest_free = 0;
+    int highest_allocated = 0;
     while (node >= 1) {
         if (node_state[node] == STATE_FREE) highest_free = node;
+        if (node_state[node] == STATE_ALLOCATED) highest_allocated = node;
         node >>= 1;
     }
     if (highest_free) return node_rank(highest_free);
+    if (highest_allocated) return node_rank(highest_allocated);
 
-    node = leaf;
-    while (node >= 1 && node_state[node] != STATE_ALLOCATED) {
-        node >>= 1;
-    }
-    if (node < 1) return -EINVAL;
-
-    return node_rank(node);
+    return -EINVAL;
 }
 
 int query_page_counts(int rank) {
